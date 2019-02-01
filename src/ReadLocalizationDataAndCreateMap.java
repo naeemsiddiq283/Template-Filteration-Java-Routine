@@ -217,15 +217,15 @@ public class ReadLocalizationDataAndCreateMap {
 			String templateString = "";
 			if (templateCell != null) {
 				templateString = templateCell.getStringCellValue();
-			} else
-				System.out.println(
-						"NUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUULLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL");
+			}
+			String rawTemplate = templateString;
+
 			String orgStringValue = orgCell.getStringCellValue().trim();
 			counter1++;
 			boolean check = false;
 			boolean isLocalizedStringExist = true;
-			System.out.println(
-					"#########################################################################################################################################\n\n");
+//			System.out.println(
+//					"#########################################################################################################################################\n\n");
 			int templateRowNumber = row.getRowNum() + 1;
 			System.out.println("Row Number : " + templateRowNumber + "   " + row.getCell(0).getNumericCellValue());
 			while (isLocalizedStringExist) {
@@ -259,8 +259,6 @@ public class ReadLocalizationDataAndCreateMap {
 					if (localizedTermValueFromLocalizedSheet != null) {
 						templateString = templateString.replace(tagName, localizedTermValueFromLocalizedSheet);
 					} else {
-//						if (templateRowNumber == 216 || templateRowNumber == 1312 || templateRowNumber == 1362
-//								|| templateRowNumber == 1363 || templateRowNumber == 1364 || templateRowNumber == 1365|| templateRowNumber == 1366)
 						templateString = templateString.replace(tagName, "NOT DEFINED!!!!");
 					}
 				}
@@ -269,8 +267,11 @@ public class ReadLocalizationDataAndCreateMap {
 					isLocalizedStringExist = false;
 				}
 			}
+
 			templateString = updateAllN6MergeTermWithN7MergeTerms(templateRowNumber, mergeTermDiscrepanciesSheet,
-					templateString, mergeTermsMap);
+					templateString, mergeTermsMap, rawTemplate);
+			templateString = replaceGoogleCalendarLinkWithaMergeTermProvidedByClient(templateString, templateRowNumber);
+
 			templateString = updateINITCAPsyntax(templateString);
 			templateString = updateIFsyntax(templateString);
 
@@ -282,22 +283,40 @@ public class ReadLocalizationDataAndCreateMap {
 			boolean check1 = false;
 			while (matcher.find()) {
 				String mergeTerm = matcher.group().trim();
-				if (!mergeTerm.equals("$if")) {
+				if (!mergeTerm.equals("$if") && !mergeTerm.equals("$500") && !mergeTerm.equals("$59")
+						&& !mergeTerm.equals("$139") && !mergeTerm.equals("$750") && !mergeTerm.equals("$19")
+						&& !mergeTerm.equals("$200") && !mergeTerm.equals("$17") && !mergeTerm.equals("$5")
+						&& !mergeTerm.equals("$1000") && !mergeTerm.equals("$1") && !mergeTerm.equals("$20")
+						&& !mergeTerm.equals("$100") && !mergeTerm.equals("$250") && !mergeTerm.equals("$39")
+						&& !mergeTerm.equals("$50") && !mergeTerm.equals("$35") && !mergeTerm.equals("$10")) {
 					check1 = true;
 					break;
 				}
+
+				// To create Files containing Dollar Amount like string
+//				if (mergeTerm.equals("$500") || mergeTerm.equals("$59") || mergeTerm.equals("$139")
+//						|| mergeTerm.equals("$750") || mergeTerm.equals("$19") || mergeTerm.equals("$200")
+//						|| mergeTerm.equals("$17") || mergeTerm.equals("$5") || mergeTerm.equals("$1000")
+//						|| mergeTerm.equals("$1") || mergeTerm.equals("$20") || mergeTerm.equals("$100")
+//						|| mergeTerm.equals("$250") || mergeTerm.equals("$39") || mergeTerm.equals("$50")
+//						|| mergeTerm.equals("$35") || mergeTerm.equals("$10")) {
+//					check1 = true;
+//					break;
+//				}
+
 			}
 			if (check1 == false) {
 				createHTMLfile(templateString, templateRowNumber);
 			}
-
-//			System.out.println("Updated Template : \n" + templateString + "\n");
+//				System.out.println("Updated Template : \n" + templateString + "\n");
 //			replaceTemplateStringInTemplateSheet(templateRowNumber, templateSheet, templateString);
 //				System.out.println(
 //						"#########################################################################################################################################\n\n");
 
-//			if (counter1 == 7)
+//			if (counter1 == 1) {
+//				System.out.println("Updated Template : \n" + templateString + "\n");
 //				break;
+//			}
 		}
 //		System.out.println("Counter  : " + counter1);
 		FileOutputStream outputStream = new FileOutputStream(discrepanciesFile);
@@ -305,6 +324,17 @@ public class ReadLocalizationDataAndCreateMap {
 		workbook.close();
 		outputStream.flush();
 		outputStream.close();
+	}
+
+	private static String replaceGoogleCalendarLinkWithaMergeTermProvidedByClient(String templateString,
+			int templateRowNumber) {
+
+		String googleLink = "http://www.google.com/calendar/event?action=TEMPLATE&text=Service%20appointment%20at%20${dealerName}&dates=$apptstartdatetimevcal/$apptenddatetimevcal&details=Service%20for%20your%20${vehicleMake}%20${vehicleModel}%20at%20$googlecalendardealeraddress%0D%0A%0D%0AThank%20you%20for%20using%20online%20service%20scheduling!&location=$googlecalendardealeraddress&trp=true";
+		if (templateString.contains(googleLink)) {
+//			System.out.println("YESSSSS!!!!!!!!!!!!!!!!!!!!     " + templateRowNumber);
+			templateString = templateString.replace(googleLink, "${googleCalendarLink}");
+		}
+		return templateString;
 	}
 
 	private static String updateIFsyntax(String templateString) {
@@ -352,7 +382,7 @@ public class ReadLocalizationDataAndCreateMap {
 				String mergeTerm = matcher1.group().trim();
 				capitalizedString += mergeTerm.substring(0, mergeTerm.length() - 1) + "?capitalize} ";
 			}
-			capitalizedString = capitalizedString.substring(0, capitalizedString.length() - 1);  // to remove last space
+			capitalizedString = capitalizedString.substring(0, capitalizedString.length() - 1); // to remove last space
 //			System.out.println("New : " + capitalizedString);
 			templateString = templateString.replace(initCapString, capitalizedString);
 		}
@@ -373,20 +403,28 @@ public class ReadLocalizationDataAndCreateMap {
 	}
 
 	private static String updateAllN6MergeTermWithN7MergeTerms(int templateRowNumber,
-			XSSFSheet mergeTermDiscrepanciesSheet, String templateString, Map<String, String> mergeTermsMap)
-			throws Exception {
+			XSSFSheet mergeTermDiscrepanciesSheet, String templateString, Map<String, String> mergeTermsMap,
+			String rawTemplate) throws Exception {
 
 		String regex = "(\\$[A-Za-z_0-9]+)";
 		Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
 		Matcher matcher = pattern.matcher(templateString);
 		while (matcher.find()) {
 			String mergeTerm = matcher.group().trim(); //
-//			System.out.println(mergeTerm);
+//				System.out.println(mergeTerm);
 			if (!mergeTerm.equals("$if") && !mergeTerm.equals("$endif")) {
 				if (!mergeTermsMap.containsKey(mergeTerm)) {
-					if (templateRowNumber == 543)
-						writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet, mergeTerm,
-								1);
+					if (mergeTerm.equals("$500") || mergeTerm.equals("$59") || mergeTerm.equals("$139")
+							|| mergeTerm.equals("$750") || mergeTerm.equals("$19") || mergeTerm.equals("$200")
+							|| mergeTerm.equals("$17") || mergeTerm.equals("$5") || mergeTerm.equals("$1000")
+							|| mergeTerm.equals("$1") || mergeTerm.equals("$20") || mergeTerm.equals("$100")
+							|| mergeTerm.equals("$250") || mergeTerm.equals("$39") || mergeTerm.equals("$50")
+							|| mergeTerm.equals("$35") || mergeTerm.equals("$10")) {
+//						writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet, mergeTerm,
+//								4);
+					} else
+						writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet, mergeTerm, 1,
+								rawTemplate);
 				} else {
 					if (!mergeTermsMap.get(mergeTerm).equals("NA") && !mergeTermsMap.get(mergeTerm).contains("??")) {
 						templateString = templateString.replace(mergeTerm, mergeTermsMap.get(mergeTerm));
@@ -395,10 +433,10 @@ public class ReadLocalizationDataAndCreateMap {
 //								"Template Number :   AB" + templateRowNumber + "         Merge Term : " + mergeTerm);
 						if (mergeTermsMap.get(mergeTerm).equals("NA")) {
 							writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet,
-									mergeTerm, 2);
-						} else {
+									mergeTerm, 2, rawTemplate);
+						} else if (mergeTermsMap.get(mergeTerm).contains("??")) {
 							writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet,
-									mergeTerm, 3);
+									mergeTerm, 3, rawTemplate);
 						}
 					}
 				}
@@ -412,12 +450,12 @@ public class ReadLocalizationDataAndCreateMap {
 	}
 
 	private static void writeMergeTermDiscripentDataInFile(int templateRowNumber, XSSFSheet mergeTermDiscrepanciesSheet,
-			String mergeTerm, int reason) {
+			String mergeTerm, int reason, String rawTemplate) {
 		boolean check = false;
 
 		if (globalRowCounter == 1) {
-			createNewRowInMergeTermSheetPopulateCells(mergeTermDiscrepanciesSheet, templateRowNumber, mergeTerm,
-					reason);
+			createNewRowInMergeTermSheetPopulateCells(mergeTermDiscrepanciesSheet, templateRowNumber, mergeTerm, reason,
+					rawTemplate);
 		} else {
 			Iterator<Row> rowIterator = mergeTermDiscrepanciesSheet.iterator();
 			Row row = rowIterator.next();
@@ -425,34 +463,37 @@ public class ReadLocalizationDataAndCreateMap {
 				row = rowIterator.next();
 				String rowCell = row.getCell(0).getStringCellValue();
 				String mergeTermCell = row.getCell(1).getStringCellValue();
-				if (/* rowCell.equals("AB" + templateRowNumber) && */mergeTermCell.equals(mergeTerm)) {
+				if (/*rowCell.equals("AB" + templateRowNumber)&& */ mergeTermCell.equals(mergeTerm) ) {
 					check = true;
 					break;
 				}
 			}
 		}
 		if (check == false) {
-			createNewRowInMergeTermSheetPopulateCells(mergeTermDiscrepanciesSheet, templateRowNumber, mergeTerm,
-					reason);
+			createNewRowInMergeTermSheetPopulateCells(mergeTermDiscrepanciesSheet, templateRowNumber, mergeTerm, reason,
+					rawTemplate);
 		}
 	}
 
 	private static void createNewRowInMergeTermSheetPopulateCells(XSSFSheet mergeTermDiscrepanciesSheet,
-			int templateRowNumber, String mergeTerm, int reason) {
+			int templateRowNumber, String mergeTerm, int reason, String rawTemplate) {
 //		System.out.println(globalRowCounter);
 		Row newRow = mergeTermDiscrepanciesSheet.createRow(globalRowCounter++);
 		Cell templateRowNumCell = newRow.createCell(0);
 		Cell mergeTermCell = newRow.createCell(1);
 		Cell reasonCell = newRow.createCell(2);
-//		if (reason != 2 && reason != 3)
+		Cell rawTemplateCell = newRow.createCell(3);
 		templateRowNumCell.setCellValue("AB" + templateRowNumber);
 		mergeTermCell.setCellValue(mergeTerm);
+		rawTemplateCell.setCellValue(rawTemplate);
 		if (reason == 1) {
 			reasonCell.setCellValue("Merge term not found in glosaary file");
 		} else if (reason == 2) {
 			reasonCell.setCellValue("NA value in N7 Type");
 		} else if (reason == 3)
 			reasonCell.setCellValue("N7 MergeTerm Contains ?? in it");
+		else if (reason == 4)
+			reasonCell.setCellValue("dollar ammount in merge term");
 	}
 
 	private static void replaceTemplateStringInTemplateSheet(int templateRowNumber, XSSFSheet templateSheet,
@@ -481,7 +522,7 @@ public class ReadLocalizationDataAndCreateMap {
 				String rowCell = row.getCell(0).getStringCellValue();
 				String tagCell = row.getCell(1).getStringCellValue();
 //				String orgKeyCell = row.getCell(2).getStringCellValue();
-				if (rowCell.equals("AB" + templateRowNumber) && tagCell
+				if (/* rowCell.equals("AB" + templateRowNumber) && */ tagCell
 						.equals(localizedTermValueFromLocalizedSheet)/* && orgKeyCell.equals(orgStringValue) */) {
 					check = true;
 					break;
