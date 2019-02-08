@@ -277,7 +277,8 @@ public class ReadLocalizationDataAndCreateMap {
 
 				}
 				if (check1 == false) {
-					createHTMLfile(templateString, templateRowNumber);
+					if (!templateString.contains("<<NOT DEFINED!!!!>>"))
+						createHTMLfile(templateString, templateRowNumber);
 				}
 //					System.out.println("Updated Template : \n" + templateString + "\n");
 //				replaceTemplateStringInTemplateSheet(templateRowNumber, templateSheet, templateString);
@@ -321,8 +322,11 @@ public class ReadLocalizationDataAndCreateMap {
 
 		if (templateString.contains("The following appointment has been $apptstate:"))
 			templateString = templateString.replace("The following appointment has been $apptstate:", "");
-		if (templateString.contains("THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br>"))
-			templateString = templateString.replace("THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br>", "");
+		if (templateString.contains("<strong>THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br><br>"))
+			templateString = templateString
+					.replace("<strong>THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br><br>", "");
+		if (templateString.contains("<title>Hyundai Appointment $apptstate Email</title>"))
+			templateString = templateString.replace("<title>Hyundai Appointment $apptstate Email</title>", "");
 
 		if (templateString.contains("Last modified on: $lastmodifiedtime"))
 			templateString = templateString.replace("Last modified on: $lastmodifiedtime", "");
@@ -443,7 +447,7 @@ public class ReadLocalizationDataAndCreateMap {
 				if (localizedTermValueFromLocalizedSheet != null) {
 					templateString = templateString.replace(tagName, localizedTermValueFromLocalizedSheet);
 				} else {
-					templateString = templateString.replace(tagName, "NOT DEFINED!!!!");
+					templateString = templateString.replace(tagName, "<<NOT DEFINED!!!!>>");
 				}
 			}
 			matcher = pattern.matcher(templateString);
