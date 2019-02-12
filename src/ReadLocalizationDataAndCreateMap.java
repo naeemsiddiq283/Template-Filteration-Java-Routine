@@ -1,9 +1,12 @@
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -15,9 +18,13 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-public class ReadLocalizationDataAndCreateMap {
+import com.vd.xtime.automation.AbstractComponent;
+
+public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 	protected static int mergeTermsRowCounter = 1;
 	protected static int localizationStringsRowCounter = 1;
+	protected static int isValetCount = 1;
+	protected static int isValetLoanerCount = 1;
 
 	public static void readLocalizationDataAndCreateMap(String localizationFilePath, String glossaryFilePath)
 			throws Exception {
@@ -144,7 +151,6 @@ public class ReadLocalizationDataAndCreateMap {
 				innerKey = languageCell.getStringCellValue().trim();
 			} else
 				innerKey = "GLOBAL";
-
 			if (languageOuterMap.containsKey(outerKey)) {
 				languageMiddleMap = languageOuterMap.get(outerKey);
 				if (languageMiddleMap.containsKey(middleKey)) {
@@ -187,14 +193,40 @@ public class ReadLocalizationDataAndCreateMap {
 		XSSFSheet mergeTermDiscrepanciesSheet = workbook.getSheetAt(1);
 //		XSSFSheet SubjectlocalizationDiscrepanciesSheet = workbook.getSheetAt(2);
 //		XSSFSheet SubjectMergeTermDiscrepanciesSheet = workbook.getSheetAt(3);
-
 		fileInputStream.close();
+		ArrayList<String> dealersList = new ArrayList<>();
+		Map<String, Integer> total_templates = new HashMap<String, Integer>();
+		Map<String, Integer> templates_ready_to_work_on = new HashMap<String, Integer>();
 
 		int counter1 = 0;
 		Iterator<Row> templateSheetRowIterator = templateSheet.iterator();
 		Row row = templateSheetRowIterator.next();
 		while (templateSheetRowIterator.hasNext()) {
 			row = templateSheetRowIterator.next();
+
+			Cell templateCell = row.getCell(27);
+			Cell orgCell = row.getCell(6);
+			Cell templateSubjectCell = row.getCell(18);
+			String templateString = "";
+			if (templateCell != null) {
+				templateString = templateCell.getStringCellValue();
+			}
+			String templateSubject = "";
+			if (templateSubjectCell != null) {
+				templateSubject = templateSubjectCell.getStringCellValue().trim();
+			}
+
+			String rawTemplate = templateString;
+			String orgStringValue = orgCell.getStringCellValue().trim();
+
+			if (!dealersList.contains(orgStringValue))
+				dealersList.add(orgStringValue);
+
+			if (!total_templates.containsKey(orgStringValue))
+				total_templates.put(orgStringValue, 0);
+
+			if (!templates_ready_to_work_on.containsKey(orgStringValue))
+				templates_ready_to_work_on.put(orgStringValue, 0);
 
 			Cell excludedFile = row.getCell(37);
 			String excludedFileName = "";
@@ -203,20 +235,11 @@ public class ReadLocalizationDataAndCreateMap {
 
 			if (!excludedFileName.equals("Y - Do Not Migrate")) {
 
-				Cell templateCell = row.getCell(27);
-				Cell orgCell = row.getCell(6);
-				Cell templateSubjectCell = row.getCell(18);
-				String templateString = "";
-				if (templateCell != null) {
-					templateString = templateCell.getStringCellValue();
-				}
-				String templateSubject = "";
-				if (templateSubjectCell != null) {
-					templateSubject = templateSubjectCell.getStringCellValue().trim();
-				}
+				if (!total_templates.containsKey(orgStringValue))
+					total_templates.put(orgStringValue, 1);
+				else if (total_templates.containsKey(orgStringValue))
+					total_templates.put(orgStringValue, total_templates.get(orgStringValue) + 1);
 
-				String rawTemplate = templateString;
-				String orgStringValue = orgCell.getStringCellValue().trim();
 				counter1++;
 				int templateRowNumber = row.getRowNum() + 1;
 				System.out.println("Row Number : " + templateRowNumber + "   " + row.getCell(0).getNumericCellValue());
@@ -276,17 +299,33 @@ public class ReadLocalizationDataAndCreateMap {
 //					}
 
 				}
+
+				ArrayList<String> group1DealersList = group1DealerList();
+				String dealerGroup = "Group 2";
+				if (group1DealersList.contains(orgStringValue))
+					dealerGroup = "Group 1";
+
 				if (check1 == false) {
-					if (!templateString.contains("<<NOT DEFINED!!!!>>"))
-						createHTMLfile(templateString, templateRowNumber);
+					if (!templateString.contains("<<NOT DEFINED!!!!>>")) {
+						if (!templates_ready_to_work_on.containsKey(orgStringValue))
+							templates_ready_to_work_on.put(orgStringValue, 1);
+						else if (templates_ready_to_work_on.containsKey(orgStringValue))
+							templates_ready_to_work_on.put(orgStringValue,
+									templates_ready_to_work_on.get(orgStringValue) + 1);
+//						createHTMLfile(templateString, templateRowNumber, dealerGroup, orgStringValue);
+						writeTemplateCharactersCountInColumnAH_AndGroupInAI(templateRowNumber, templateSheet,
+								templateString, dealerGroup);
+					}
+				} else {
+					if (!templateString.contains("<<NOT DEFINED!!!!>>")) {
+//						createHTMLfileWithdiscrepancies(templateString, templateRowNumber, dealerGroup, orgStringValue);
+						writeTemplateCharactersCountInColumnAH_AndGroupInAI(templateRowNumber, templateSheet,
+								templateString, dealerGroup);
+					}
 				}
 //					System.out.println("Updated Template : \n" + templateString + "\n");
-//				replaceTemplateStringInTemplateSheet(templateRowNumber, templateSheet, templateString);
-//					System.out.println(
-//							"#########################################################################################################################################\n\n");
 
-//				if (counter1 == 981) {
-
+//				if (counter1 == 1) {
 //					break;
 //				}
 
@@ -296,12 +335,48 @@ public class ReadLocalizationDataAndCreateMap {
 			}
 
 		}
+//		System.out.println("check");
+//		System.out.println("isValet : " + isValetCount + "\nValet Loaner : " + isValetLoanerCount);
+//		writeDealersTotalFilesAndFilesReadyToMigrateInExcelFile(dealersList, total_templates,
+//				templates_ready_to_work_on);
+
 //		System.out.println("Counter  : " + counter1);
 		FileOutputStream outputStream = new FileOutputStream(discrepanciesFile);
 		workbook.write(outputStream);
 		workbook.close();
 		outputStream.flush();
 		outputStream.close();
+	}
+
+	private static void writeDealersTotalFilesAndFilesReadyToMigrateInExcelFile(ArrayList<String> dealersList,
+			Map<String, Integer> total_templates, Map<String, Integer> templates_ready_to_work_on) throws Exception {
+
+		String dealerListFile = "C:\\Users\\Sakhi\\Desktop\\xTime\\DealerListWithTotalTemplatesAndTemplateReadyToMigrate.xlsx";
+		FileInputStream fileInputStream = new FileInputStream(new File(dealerListFile));
+		XSSFWorkbook workbook = new XSSFWorkbook(fileInputStream);
+		XSSFSheet dealersReadyTemplatesSheet = workbook.getSheetAt(0);
+		fileInputStream.close();
+		for (int i = 0; i < dealersList.size(); i++) {
+			String dealer = dealersList.get(i);
+//			System.out.println(
+//					dealer + "\t" + total_templates.get(dealer) + "\t" + templates_ready_to_work_on.get(dealer));
+			Row newRow = dealersReadyTemplatesSheet.createRow(i + 1);
+			Cell dealerName = newRow.createCell(0);
+			Cell totalTemplates = newRow.createCell(1);
+			Cell templateReadyToMigrate = newRow.createCell(2);
+
+			dealerName.setCellValue(dealer);
+			totalTemplates.setCellValue(total_templates.get(dealer));
+			templateReadyToMigrate.setCellValue(templates_ready_to_work_on.get(dealer));
+
+		}
+		FileOutputStream outputStream = new FileOutputStream(dealerListFile);
+		workbook.write(outputStream);
+		workbook.close();
+		outputStream.flush();
+		outputStream.close();
+		System.out.println("ALHAMDULILLAH \nDONE");
+
 	}
 
 	private static String removeContentSaidByClient(String templateString) {
@@ -314,17 +389,20 @@ public class ReadLocalizationDataAndCreateMap {
 //					"<#if transportationType == 'Valet with Loaner'>");
 //		
 
-		if (templateString.contains("$if $isvalet='Y'"))
+		if (templateString.contains("$if $isvalet='Y'")) {
+			isValetCount++;
 			templateString = templateString.replace("$if $isvalet='Y'", "<#if transportationType == 'Valet'>");
-		if (templateString.contains("$if $valetloaner='Y'"))
+		}
+		if (templateString.contains("$if $valetloaner='Y'")) {
+			isValetLoanerCount++;
 			templateString = templateString.replace("$if $valetloaner='Y'",
 					"<#if transportationType == 'Valet with Loaner'>");
-
+		}
 		if (templateString.contains("The following appointment has been $apptstate:"))
 			templateString = templateString.replace("The following appointment has been $apptstate:", "");
-		if (templateString.contains("<strong>THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br><br>"))
-			templateString = templateString
-					.replace("<strong>THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br><br>", "");
+		if (templateString.contains("THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br><br>"))
+			templateString = templateString.replace("THE FOLLOWING APPOINTMENT HAS BEEN<br><br>$apptstate:<br><br>",
+					"");
 		if (templateString.contains("<title>Hyundai Appointment $apptstate Email</title>"))
 			templateString = templateString.replace("<title>Hyundai Appointment $apptstate Email</title>", "");
 
@@ -339,6 +417,8 @@ public class ReadLocalizationDataAndCreateMap {
 			templateString = templateString.replace("Team: $teamname<br>", "");
 		if (templateString.contains("<span>$teamname</span>"))
 			templateString = templateString.replace("<span>$teamname</span>", "");
+		if (templateString.contains("<tr><td>Team:</td><td><b>$teamname</b></td></tr>"))
+			templateString = templateString.replace("<tr><td>Team:</td><td><b>$teamname</b></td></tr>", "");
 
 		if (templateString.contains("Trim Information: $trim, $enginetype, $enginesize, $drivetype, $transmissiontype"))
 			templateString = templateString
@@ -373,6 +453,8 @@ public class ReadLocalizationDataAndCreateMap {
 		if (templateString.contains("Cancellation Notes:&nbsp;&nbsp;<b> $cancellationreasonnote</b>"))
 			templateString = templateString.replace("Cancellation Notes:&nbsp;&nbsp;<b> $cancellationreasonnote</b>",
 					"");
+		if (templateString.contains("$cancellationreasonnote,"))
+			templateString = templateString.replace("$cancellationreasonnote,", "");
 
 		if (templateString.contains("<b>Cancellation Type:</b> $cancellationreasontype"))
 			templateString = templateString.replace("<b>Cancellation Type:</b> $cancellationreasontype", "");
@@ -422,11 +504,6 @@ public class ReadLocalizationDataAndCreateMap {
 				if (tagNameAsLocalizedSheet.equals("terms.loaner.ls")
 						|| tagNameAsLocalizedSheet.equals("terms.loaner.LS"))
 					tagNameAsLocalizedSheet = "terms.loaner.LS";
-
-//				terms.valet.ALLCAPS -> terms.VALET.allcaps
-//				notif.tci.toyota1.TEXT06nocal -> notif.tci.toyota1.TEXT06NoCal
-//				terms.valet.ls -> terms.valet.LS
-//				terms.loaner.ls -> terms.loaner.LS
 
 				String localizedTermValueFromLocalizedSheet = null; // from tag
 				if (!tagMap.containsKey(tagNameAsLocalizedSheet)) {
@@ -516,17 +593,66 @@ public class ReadLocalizationDataAndCreateMap {
 		return templateString;
 	}
 
-	private static void createHTMLfile(String templateString, int templateRowNumber) throws Exception {
+	private static void createHTMLfile(String templateString, int templateRowNumber, String dealerGroup,
+			String orgStringValue) throws Exception {
 
-		File old_file = new File("C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\AB" + templateRowNumber + ".html");
+		String newDirectoryPath = "C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\" + dealerGroup + "\\"
+				+ orgStringValue;
+		createNewFolder(newDirectoryPath);
+		File old_file = new File("C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\" + dealerGroup + "\\"
+				+ orgStringValue + "\\AB" + templateRowNumber + ".html");
 		old_file.delete();
-		File new_file = new File("C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\AB" + templateRowNumber + ".html");
+		File new_file = new File("C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\" + dealerGroup + "\\"
+				+ orgStringValue + "\\AB" + templateRowNumber + ".html");
+		try (FileWriter fw = new FileWriter(new_file, true);
+				BufferedWriter bw = new BufferedWriter(fw);
+				PrintWriter out = new PrintWriter(bw)) {
+			out.println(templateString);
+		}
+	}
+
+	private static void createHTMLfileWithdiscrepancies(String templateString, int templateRowNumber,
+			String dealerGroup, String orgStringValue) throws Exception {
+
+		String newDirectoryPath = "C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\" + dealerGroup + "\\"
+				+ orgStringValue;
+		createNewFolder(newDirectoryPath);
+
+		String discrepantFileDirectory = newDirectoryPath + "\\Discrepant Files";
+		createNewFolder(discrepantFileDirectory);
+
+		File old_file = new File("C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\" + dealerGroup + "\\"
+				+ orgStringValue + "\\Discrepant Files\\AB" + templateRowNumber + ".html");
+		old_file.delete();
+		File new_file = new File("C:\\Users\\Sakhi\\Desktop\\xTime\\Template Files\\" + dealerGroup + "\\"
+				+ orgStringValue + "\\Discrepant Files\\AB" + templateRowNumber + ".html");
 
 		try (FileWriter fw = new FileWriter(new_file, true);
 				BufferedWriter bw = new BufferedWriter(fw);
 				PrintWriter out = new PrintWriter(bw)) {
 			out.println(templateString);
 		}
+
+	}
+
+	private static void createNewFolder(String newDirectoryPath) {
+		File theDir = new File(newDirectoryPath);
+		// if the directory does not exist, create it
+		if (!theDir.exists()) {
+			System.out.println("creating directory: " + theDir.getName());
+			boolean result = false;
+
+			try {
+				theDir.mkdir();
+				result = true;
+			} catch (SecurityException se) {
+				// handle it
+			}
+			if (result) {
+				System.out.println("DIR created");
+			}
+		}
+
 	}
 
 	private static String updateAllN6MergeTermWithN7MergeTerms(int templateRowNumber,
@@ -624,13 +750,20 @@ public class ReadLocalizationDataAndCreateMap {
 			reasonCell.setCellValue("dollar ammount in merge term");
 	}
 
-	private static void replaceTemplateStringInTemplateSheet(int templateRowNumber, XSSFSheet templateSheet,
-			String templateString) {
+	private static void writeTemplateCharactersCountInColumnAH_AndGroupInAI(int templateRowNumber,
+			XSSFSheet templateSheet, String templateString, String dealerGroup) {
 		System.out.println("Print Row Number : " + templateRowNumber);
 		Row row = templateSheet.getRow(templateRowNumber - 1);
-		Cell templateCell = row.createCell(27);
-		templateCell = row.getCell(27);
-		templateCell.setCellValue(templateString);
+//		Cell templateCell = row.createCell(27);
+//		templateCell = row.getCell(27);
+//		templateCell.setCellValue(templateString);
+		Cell templateCharacterCountCell = row.createCell(33);
+		templateCharacterCountCell = row.getCell(33);
+		templateCharacterCountCell.setCellValue(templateString.length());
+		Cell templateGroupCell = row.createCell(34);
+		templateGroupCell = row.getCell(34);
+		templateGroupCell.setCellValue(dealerGroup);
+
 	}
 
 	private static void replaceSubjectStringInTemplateSheet(int templateRowNumber, XSSFSheet templateSheet,
