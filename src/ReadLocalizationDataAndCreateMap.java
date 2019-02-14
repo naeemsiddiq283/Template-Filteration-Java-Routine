@@ -23,8 +23,8 @@ import com.vd.xtime.automation.AbstractComponent;
 public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 	protected static int mergeTermsRowCounter = 1;
 	protected static int localizationStringsRowCounter = 1;
-	protected static int isValetCount = 1;
-	protected static int isValetLoanerCount = 1;
+	protected static int okTemplates = 0;
+	protected static int discrepantTemplates = 0;
 
 	public static void readLocalizationDataAndCreateMap(String localizationFilePath, String glossaryFilePath)
 			throws Exception {
@@ -255,16 +255,14 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 
 				/* Update Template */
 
-//				templateString = replaceDECODEsyntax(templateString, orgStringValue, tagMap, languageOuterMap);
+				templateString = replaceDECODEsyntax(templateString, templateRowNumber, localizationDiscrepanciesSheet,
+						orgStringValue, tagMap, languageOuterMap);
 				templateString = replaceLocalizationStringsWithValues(templateString, templateRowNumber,
 						localizationDiscrepanciesSheet, orgStringValue, tagMap, languageOuterMap);
 				templateString = removeContentSaidByClient(templateString);
-
+				templateString = replaceCalendarLinksWithMergeTermsProvidedByClient(templateString, templateRowNumber);
 				templateString = updateAllN6MergeTermWithN7MergeTerms(templateRowNumber, mergeTermDiscrepanciesSheet,
 						templateString, mergeTermsMap, rawTemplate);
-				templateString = replaceGoogleCalendarLinkWithaMergeTermProvidedByClient(templateString,
-						templateRowNumber);
-
 				templateString = updateINITCAPsyntax(templateString);
 				templateString = updateIFsyntax(templateString);
 
@@ -312,22 +310,24 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 						else if (templates_ready_to_work_on.containsKey(orgStringValue))
 							templates_ready_to_work_on.put(orgStringValue,
 									templates_ready_to_work_on.get(orgStringValue) + 1);
+						okTemplates++;
 //						createHTMLfile(templateString, templateRowNumber, dealerGroup, orgStringValue);
-						writeTemplateCharactersCountInColumnAH_AndGroupInAI(templateRowNumber, templateSheet,
-								templateString, dealerGroup);
+//						writeTemplateCharactersCountInColumnAH_AndGroupInAI(templateRowNumber, templateSheet,
+//								templateString, dealerGroup);
 					}
 				} else {
 					if (!templateString.contains("<<NOT DEFINED!!!!>>")) {
+						discrepantTemplates++;
 //						createHTMLfileWithdiscrepancies(templateString, templateRowNumber, dealerGroup, orgStringValue);
-						writeTemplateCharactersCountInColumnAH_AndGroupInAI(templateRowNumber, templateSheet,
-								templateString, dealerGroup);
+//						writeTemplateCharactersCountInColumnAH_AndGroupInAI(templateRowNumber, templateSheet,
+//								templateString, dealerGroup);
 					}
 				}
 //					System.out.println("Updated Template : \n" + templateString + "\n");
 
-//				if (counter1 == 1) {
-//					break;
-//				}
+				if (counter1 == 15) {
+					break;
+				}
 
 				/************** END *****************/
 			} else {
@@ -336,7 +336,7 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 
 		}
 //		System.out.println("check");
-//		System.out.println("isValet : " + isValetCount + "\nValet Loaner : " + isValetLoanerCount);
+		System.out.println("okTemplates : " + okTemplates + "\nDiscrepant Template : " + discrepantTemplates);
 //		writeDealersTotalFilesAndFilesReadyToMigrateInExcelFile(dealersList, total_templates,
 //				templates_ready_to_work_on);
 
@@ -346,6 +346,74 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 		workbook.close();
 		outputStream.flush();
 		outputStream.close();
+	}
+
+	private static String replaceDECODEsyntax(String templateString, int templateRowNumber,
+			XSSFSheet localizationDiscrepanciesSheet, String orgStringValue, Map<String, Map<String, String>> tagMap,
+			Map<String, Map<String, Map<String, String>>> languageOuterMap) {
+
+		String decodeRegEx = "(\\$\\~\\[DECODE([\\S\\s])*?.\\)\\])";
+		Pattern pattern = Pattern.compile(decodeRegEx, Pattern.CASE_INSENSITIVE);
+		Matcher matcher = pattern.matcher(templateString);
+		while (matcher.find()) {
+			String decodeString = matcher.group().trim();
+			System.out.println(decodeString);
+			String tempDecodeString = decodeString.substring(10, decodeString.length() - 2);
+			System.out.println(tempDecodeString);
+			String[] decodeArguments = tempDecodeString.split(",");
+			int totalArguments = decodeArguments.length;
+			String firstArgument = "", secondArgument = "", thirdArgument = "", fourthArgument = "", fifthArgument = "",
+					sixthArgument = "";
+
+			firstArgument = decodeArguments[0].trim();
+			firstArgument = firstArgument.substring(1, firstArgument.length() - 1);
+			secondArgument = decodeArguments[1].trim();
+			secondArgument = secondArgument.substring(1, secondArgument.length() - 1);
+			thirdArgument = decodeArguments[2].trim();
+			thirdArgument = thirdArgument.substring(1, thirdArgument.length() - 1);
+			fourthArgument = decodeArguments[3].trim();
+			fourthArgument = fourthArgument.substring(1, fourthArgument.length() - 1);
+			String callingMethod = "DECODE";
+			String valueAgainstLocalizationString = valueAgainstLocalizationString(templateString, firstArgument,
+					orgStringValue, tagMap, languageOuterMap, templateRowNumber, localizationDiscrepanciesSheet,
+					callingMethod);
+			String decodeReplacementString = "";
+
+			if (totalArguments == 4) {
+				if (secondArgument.equals("")) {
+//					System.out.println("SECONG ARGUMENT IS EMPTY");
+					if (!valueAgainstLocalizationString.equals("GLOBAL") && !valueAgainstLocalizationString.equals(""))
+						decodeReplacementString = fourthArgument;
+					else if (valueAgainstLocalizationString.equals("GLOBAL"))
+						decodeReplacementString = thirdArgument;
+				} else {
+					if (valueAgainstLocalizationString.equals(secondArgument))
+						decodeReplacementString = thirdArgument;
+					else
+						decodeReplacementString = fourthArgument;
+				}
+			} else if (totalArguments == 6) {
+				fifthArgument = decodeArguments[4].trim();
+				fifthArgument = fifthArgument.substring(1, fifthArgument.length() - 1);
+				sixthArgument = decodeArguments[5].trim();
+				sixthArgument = sixthArgument.substring(1, sixthArgument.length() - 1);
+				if (valueAgainstLocalizationString.equals(secondArgument))
+					decodeReplacementString = thirdArgument;
+				else if (valueAgainstLocalizationString.equals(fourthArgument))
+					decodeReplacementString = fifthArgument;
+				else
+					decodeReplacementString = sixthArgument;
+			}
+			templateString.replace(decodeString, decodeReplacementString);
+
+			System.out.println(firstArgument + " " + firstArgument.length() + "\n" + secondArgument + " "
+					+ secondArgument.length() + "\n" + thirdArgument + " " + thirdArgument.length() + "\n"
+					+ fourthArgument + " " + fourthArgument.length());
+
+		}
+
+		return templateString;
+
 	}
 
 	private static void writeDealersTotalFilesAndFilesReadyToMigrateInExcelFile(ArrayList<String> dealersList,
@@ -390,11 +458,9 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 //		
 
 		if (templateString.contains("$if $isvalet='Y'")) {
-			isValetCount++;
 			templateString = templateString.replace("$if $isvalet='Y'", "<#if transportationType == 'Valet'>");
 		}
 		if (templateString.contains("$if $valetloaner='Y'")) {
-			isValetLoanerCount++;
 			templateString = templateString.replace("$if $valetloaner='Y'",
 					"<#if transportationType == 'Valet with Loaner'>");
 		}
@@ -474,10 +540,43 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 		return templateString;
 	}
 
-	private static String replaceDECODEsyntax(String templateString, String orgStringValue,
-			Map<String, Map<String, String>> tagMap, Map<String, Map<String, Map<String, String>>> languageOuterMap) {
+	private static String valueAgainstLocalizationString(String templateString, String tagName, String orgStringValue,
+			Map<String, Map<String, String>> tagMap, Map<String, Map<String, Map<String, String>>> languageOuterMap,
+			int templateRowNumber, XSSFSheet localizationDiscrepanciesSheet, String callingMethod) {
 
-		return null;
+		String tagNameAsLocalizedSheet = tagName.substring(2, tagName.length() - 1); // To remove $[ and ]
+		if (tagNameAsLocalizedSheet.equals("terms.valet.ALLCAPS")
+				|| tagNameAsLocalizedSheet.equals("terms.VALET.allcaps"))
+			tagNameAsLocalizedSheet = "terms.VALET.allcaps";
+		if (tagNameAsLocalizedSheet.equals("notif.tci.toyota1.TEXT06nocal")
+				|| tagNameAsLocalizedSheet.equals("notif.tci.toyota1.TEXT06NoCal"))
+			tagNameAsLocalizedSheet = "notif.tci.toyota1.TEXT06NoCal";
+		if (tagNameAsLocalizedSheet.equals("terms.valet.ls") || tagNameAsLocalizedSheet.equals("terms.valet.LS"))
+			tagNameAsLocalizedSheet = "terms.valet.LS";
+		if (tagNameAsLocalizedSheet.equals("terms.loaner.ls") || tagNameAsLocalizedSheet.equals("terms.loaner.LS"))
+			tagNameAsLocalizedSheet = "terms.loaner.LS";
+
+		String localizedTermValueFromLocalizedSheet = null; // from tag
+		if (!tagMap.containsKey(tagNameAsLocalizedSheet)) {
+			if (!callingMethod.equals("DECODE"))
+				writeLocalizedStringDiscripentDataInFile(templateRowNumber, tagNameAsLocalizedSheet, orgStringValue,
+						localizationDiscrepanciesSheet, localizationStringsRowCounter++, 1);
+		} else {
+			if (tagMap.get(tagNameAsLocalizedSheet).containsKey(orgStringValue)) {
+				localizedTermValueFromLocalizedSheet = tagMap.get(tagNameAsLocalizedSheet).get(orgStringValue);
+			} else if (tagMap.get(tagNameAsLocalizedSheet).containsKey("GLOBAL")) {
+				if (languageOuterMap.get(tagNameAsLocalizedSheet).containsKey("GLOBAL")) {
+					if (languageOuterMap.get(tagNameAsLocalizedSheet).get("GLOBAL").containsKey("GLOBAL")) {
+						localizedTermValueFromLocalizedSheet = languageOuterMap.get(tagNameAsLocalizedSheet)
+								.get("GLOBAL").get("GLOBAL");
+						if (callingMethod.equals("DECODE"))
+							localizedTermValueFromLocalizedSheet = "GLOBAL";
+					}
+				}
+			}
+		}
+
+		return localizedTermValueFromLocalizedSheet;
 	}
 
 	private static String replaceLocalizationStringsWithValues(String templateString, int templateRowNumber,
@@ -491,36 +590,41 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 			Matcher matcher = pattern.matcher(templateString);
 			while (matcher.find()) {
 				String tagName = matcher.group().trim();
-				String tagNameAsLocalizedSheet = tagName.substring(2, tagName.length() - 1); // To remove $[ and ]
-				if (tagNameAsLocalizedSheet.equals("terms.valet.ALLCAPS")
-						|| tagNameAsLocalizedSheet.equals("terms.VALET.allcaps"))
-					tagNameAsLocalizedSheet = "terms.VALET.allcaps";
-				if (tagNameAsLocalizedSheet.equals("notif.tci.toyota1.TEXT06nocal")
-						|| tagNameAsLocalizedSheet.equals("notif.tci.toyota1.TEXT06NoCal"))
-					tagNameAsLocalizedSheet = "notif.tci.toyota1.TEXT06NoCal";
-				if (tagNameAsLocalizedSheet.equals("terms.valet.ls")
-						|| tagNameAsLocalizedSheet.equals("terms.valet.LS"))
-					tagNameAsLocalizedSheet = "terms.valet.LS";
-				if (tagNameAsLocalizedSheet.equals("terms.loaner.ls")
-						|| tagNameAsLocalizedSheet.equals("terms.loaner.LS"))
-					tagNameAsLocalizedSheet = "terms.loaner.LS";
+//				String tagNameAsLocalizedSheet = tagName.substring(2, tagName.length() - 1); // To remove $[ and ]
+//				if (tagNameAsLocalizedSheet.equals("terms.valet.ALLCAPS")
+//						|| tagNameAsLocalizedSheet.equals("terms.VALET.allcaps"))
+//					tagNameAsLocalizedSheet = "terms.VALET.allcaps";
+//				if (tagNameAsLocalizedSheet.equals("notif.tci.toyota1.TEXT06nocal")
+//						|| tagNameAsLocalizedSheet.equals("notif.tci.toyota1.TEXT06NoCal"))
+//					tagNameAsLocalizedSheet = "notif.tci.toyota1.TEXT06NoCal";
+//				if (tagNameAsLocalizedSheet.equals("terms.valet.ls")
+//						|| tagNameAsLocalizedSheet.equals("terms.valet.LS"))
+//					tagNameAsLocalizedSheet = "terms.valet.LS";
+//				if (tagNameAsLocalizedSheet.equals("terms.loaner.ls")
+//						|| tagNameAsLocalizedSheet.equals("terms.loaner.LS"))
+//					tagNameAsLocalizedSheet = "terms.loaner.LS";
+//
+//				String localizedTermValueFromLocalizedSheet = null; // from tag
+//				if (!tagMap.containsKey(tagNameAsLocalizedSheet)) {
+//					writeLocalizedStringDiscripentDataInFile(templateRowNumber, tagNameAsLocalizedSheet, orgStringValue,
+//							localizationDiscrepanciesSheet, localizationStringsRowCounter++, 1);
+//				} else {
+//					if (tagMap.get(tagNameAsLocalizedSheet).containsKey(orgStringValue)) {
+//						localizedTermValueFromLocalizedSheet = tagMap.get(tagNameAsLocalizedSheet).get(orgStringValue);
+//					} else if (tagMap.get(tagNameAsLocalizedSheet).containsKey("GLOBAL")) {
+//						if (languageOuterMap.get(tagNameAsLocalizedSheet).containsKey("GLOBAL")) {
+//							if (languageOuterMap.get(tagNameAsLocalizedSheet).get("GLOBAL").containsKey("GLOBAL")) {
+//								localizedTermValueFromLocalizedSheet = languageOuterMap.get(tagNameAsLocalizedSheet)
+//										.get("GLOBAL").get("GLOBAL");
+//							}
+//						}
+//					}
+//				}
+				String callingMethod = "LOCALIZATION";
+				String localizedTermValueFromLocalizedSheet = valueAgainstLocalizationString(templateString, tagName,
+						orgStringValue, tagMap, languageOuterMap, templateRowNumber, localizationDiscrepanciesSheet,
+						callingMethod); // from tag
 
-				String localizedTermValueFromLocalizedSheet = null; // from tag
-				if (!tagMap.containsKey(tagNameAsLocalizedSheet)) {
-					writeLocalizedStringDiscripentDataInFile(templateRowNumber, tagNameAsLocalizedSheet, orgStringValue,
-							localizationDiscrepanciesSheet, localizationStringsRowCounter++, 1);
-				} else {
-					if (tagMap.get(tagNameAsLocalizedSheet).containsKey(orgStringValue)) {
-						localizedTermValueFromLocalizedSheet = tagMap.get(tagNameAsLocalizedSheet).get(orgStringValue);
-					} else if (tagMap.get(tagNameAsLocalizedSheet).containsKey("GLOBAL")) {
-						if (languageOuterMap.get(tagNameAsLocalizedSheet).containsKey("GLOBAL")) {
-							if (languageOuterMap.get(tagNameAsLocalizedSheet).get("GLOBAL").containsKey("GLOBAL")) {
-								localizedTermValueFromLocalizedSheet = languageOuterMap.get(tagNameAsLocalizedSheet)
-										.get("GLOBAL").get("GLOBAL");
-							}
-						}
-					}
-				}
 				if (localizedTermValueFromLocalizedSheet != null) {
 					templateString = templateString.replace(tagName, localizedTermValueFromLocalizedSheet);
 				} else {
@@ -535,13 +639,37 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 		return templateString;
 	}
 
-	private static String replaceGoogleCalendarLinkWithaMergeTermProvidedByClient(String templateString,
+	private static String replaceCalendarLinksWithMergeTermsProvidedByClient(String templateString,
 			int templateRowNumber) {
 
-		String googleLink = "http://www.google.com/calendar/event?action=TEMPLATE&text=Service%20appointment%20at%20${dealerName}&dates=$apptstartdatetimevcal/$apptenddatetimevcal&details=Service%20for%20your%20${vehicleMake}%20${vehicleModel}%20at%20$googlecalendardealeraddress%0D%0A%0D%0AThank%20you%20for%20using%20online%20service%20scheduling!&location=$googlecalendardealeraddress&trp=true";
-		if (templateString.contains(googleLink)) {
-			templateString = templateString.replace(googleLink, "${googleCalendarLink}");
+		String googleLinkRegex = "(http:\\/\\/www\\.google\\.com\\/calendar[A-Za-z0-9\\?\\{\\}\\/\\%\\&\\=\\!\\_\\.\\ \\r\\n\\$]+)";
+		String yahooLinkRegex = "(http:\\/\\/calendar\\.yahoo\\.com[A-Za-z0-9\\?\\{\\}\\/\\%\\&\\=\\!\\_\\.\\ \\r\\n\\$]+)";
+		String microsoftLiveLinkRegex = "(http:\\/\\/calendar\\.live\\.com\\/calendar\\/calendar\\.aspx[A-Za-z0-9\\?\\{\\}\\/\\%\\&\\=\\!\\_\\.\\ \\r\\n\\$]+)";
+
+		Pattern pattern = Pattern.compile(googleLinkRegex);
+		Matcher matcher = pattern.matcher(templateString);
+		while (matcher.find()) {
+			String linkText = matcher.group().trim();
+			templateString = templateString.replace(linkText, "${googleCalendarLink}");
+//			System.out.println("Google Link : " + linkText);
 		}
+
+		pattern = Pattern.compile(yahooLinkRegex);
+		matcher = pattern.matcher(templateString);
+		while (matcher.find()) {
+			String linkText = matcher.group().trim();
+			templateString = templateString.replace(linkText, "${yahooCalendarLink}");
+//			System.out.println("Yahoo Link : " + linkText);
+		}
+
+		pattern = Pattern.compile(microsoftLiveLinkRegex);
+		matcher = pattern.matcher(templateString);
+		while (matcher.find()) {
+			String linkText = matcher.group().trim();
+			templateString = templateString.replace(linkText, "");
+//			System.out.println("Live Link : " + linkText);
+		}
+
 		return templateString;
 	}
 
@@ -665,9 +793,12 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 		while (matcher.find()) {
 			String mergeTerm = matcher.group().trim(); //
 //				System.out.println(mergeTerm);
-			if (!mergeTerm.equals("$if") && !mergeTerm.equals("$endif") && !mergeTerm.equals("$mailto")
-					&& !mergeTerm.equals("$apptstartdatetimevcal") && !mergeTerm.equals("$apptenddatetimevcal")
-					&& !mergeTerm.equals("$googlecalendardealeraddress")) {
+			if (!mergeTerm.equals("$if") && !mergeTerm.equals("$endif")
+					&& !mergeTerm.equals("$mailto")/*
+													 * && !mergeTerm.equals("$apptstartdatetimevcal") &&
+													 * !mergeTerm.equals("$apptenddatetimevcal") &&
+													 * !mergeTerm.equals("$googlecalendardealeraddress")
+													 */) {
 				if (!mergeTermsMap.containsKey(mergeTerm)) {
 					if (mergeTerm.equals("$500") || mergeTerm.equals("$59") || mergeTerm.equals("$139")
 							|| mergeTerm.equals("$750") || mergeTerm.equals("$19") || mergeTerm.equals("$200")
@@ -678,8 +809,8 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 //						writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet, mergeTerm,
 //								4);
 					} else {
-//						writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet, mergeTerm, 1,
-//								rawTemplate);
+						writeMergeTermDiscripentDataInFile(templateRowNumber, mergeTermDiscrepanciesSheet, mergeTerm, 1,
+								rawTemplate);
 					}
 				} else {
 					if (!mergeTermsMap.get(mergeTerm).equals("NA") && !mergeTermsMap.get(mergeTerm).contains("??")) {
@@ -791,12 +922,9 @@ public class ReadLocalizationDataAndCreateMap extends AbstractComponent {
 				row = rowIterator.next();
 				String rowCell = row.getCell(0).getStringCellValue();
 				String tagCell = row.getCell(1).getStringCellValue();
-//				String orgKeyCell = row.getCell(2).getStringCellValue();
-				if (rowCell.equals(
-						"AB" + templateRowNumber)/*
-													 * && tagCell .equals(localizedTermValueFromLocalizedSheet)&&
-													 * orgKeyCell.equals(orgStringValue)
-													 */) {
+				String orgKeyCell = row.getCell(2).getStringCellValue();
+				if (rowCell.equals("AB" + templateRowNumber) && tagCell.equals(localizedTermValueFromLocalizedSheet)
+				/* && orgKeyCell.equals(orgStringValue) */) {
 					check = true;
 					break;
 				}
